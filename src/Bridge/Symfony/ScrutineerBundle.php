@@ -24,6 +24,19 @@ use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
  */
 final class ScrutineerBundle extends AbstractBundle
 {
+    /**
+     * This bundle class lives in `src/Bridge/Symfony/`, but `AbstractBundle::getPath()` derives
+     * the bundle root as `dirname(<class file>, 2)` = `src/Bridge`. The `@ScrutineerBundle`
+     * resource locator would then look under `src/Bridge/Resources/…`, which does not exist — the
+     * Resources live beside this file, in `src/Bridge/Symfony/Resources/…`. Point the bundle path
+     * at this file's own directory so hosts can mount routes with the documented
+     * `@ScrutineerBundle/Resources/config/routes.php` locator.
+     */
+    public function getPath(): string
+    {
+        return __DIR__;
+    }
+
     public function configure(DefinitionConfigurator $definition): void
     {
         $definition->rootNode()
