@@ -1,0 +1,11 @@
+# No manual port aliases: each Acme* class binds itself to its port via #[AsAlias(<Port>::class)]
+# (see example/src). In a real app your existing `App\: resource` autodiscovery already registers
+# them (as long as `autoconfigure: true`, so the attribute is processed) — you write ZERO
+# Scrutineer-specific wiring. This block only makes the standalone example self-contained.
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true   # required so #[AsAlias] is honoured
+
+    Acme\:
+        resource: '../src/'

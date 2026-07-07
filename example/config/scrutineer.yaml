@@ -1,0 +1,7 @@
+# The bundle config for the example (see the main README, step 2).
+scrutineer:
+    enabled: '%env(bool:SCRUTINEER_ENABLED)%'   # the sole server-side gate — 403 everywhere when false
+    asset_path: '%kernel.project_dir%/vendor/…/scrutineer-console.js'   # disk path to the front asset
+    language: fr
+    # table / connection: only used by the DEFAULT Doctrine history store. Irrelevant here, since
+    # this example overrides HistoryStore with the in-memory AcmeHistoryStore.
