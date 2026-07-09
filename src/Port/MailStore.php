@@ -24,4 +24,12 @@ interface MailStore
      * @return list<CapturedMail> the mails tagged with $posteHash, most-recent-first
      */
     public function inbox(string $posteHash, ?int $limit = null): array;
+
+    /**
+     * Drop captured mails older than $olderThan. The library calls this opportunistically when
+     * a poste token is minted, so the inbox self-cleans without any host cron.
+     *
+     * @return int the number of rows removed
+     */
+    public function purge(\DateTimeImmutable $olderThan): int;
 }

@@ -60,6 +60,15 @@ final class DoctrineMailStore implements MailStore
         );
     }
 
+    public function purge(\DateTimeImmutable $olderThan): int
+    {
+        return (int) $this->connection->createQueryBuilder()
+            ->delete($this->table)
+            ->where('captured_at < :threshold')
+            ->setParameter('threshold', $olderThan->format('Y-m-d H:i:s.u'))
+            ->executeStatement();
+    }
+
     /**
      * @param array<string, mixed> $row
      */

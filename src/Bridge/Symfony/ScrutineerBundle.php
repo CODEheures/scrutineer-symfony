@@ -68,6 +68,9 @@ final class ScrutineerBundle extends AbstractBundle
                         // still cannot deliver anywhere.
                         ->scalarNode('domain')->defaultValue('scrutineer.invalid')->end()
                         ->scalarNode('table')->defaultValue(ScrutineerMailSchema::TABLE)->end()
+                        // Captured mails are dropped past this age, opportunistically, each
+                        // time a poste token is minted — no host cron.
+                        ->integerNode('retention_days')->defaultValue(7)->min(1)->end()
                     ->end()
                 ->end()
             ->end();
@@ -80,7 +83,7 @@ final class ScrutineerBundle extends AbstractBundle
      *     language: string,
      *     table: string,
      *     connection: string|null,
-     *     mail_capture: array{enabled: bool, domain: string, table: string},
+     *     mail_capture: array{enabled: bool, domain: string, table: string, retention_days: int},
      * } $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
@@ -95,7 +98,8 @@ final class ScrutineerBundle extends AbstractBundle
             // Always set (even when off) so services.php / the command can reference them.
             ->set('scrutineer.mail_capture.enabled', $mailCapture['enabled'])
             ->set('scrutineer.mail_capture.domain', $mailCapture['domain'])
-            ->set('scrutineer.mail_capture.table', $mailCapture['table']);
+            ->set('scrutineer.mail_capture.table', $mailCapture['table'])
+            ->set('scrutineer.mail_capture.retention_days', $mailCapture['retention_days']);
 
         $container->import(__DIR__ . '/Resources/config/services.php');
 

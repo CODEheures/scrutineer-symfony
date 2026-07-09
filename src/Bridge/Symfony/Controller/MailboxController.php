@@ -36,6 +36,10 @@ final class MailboxController
             return $this->forbidden();
         }
 
+        // Self-cleaning: minting a token is the frequent, autonomous hook to drop mails past the
+        // retention window — no host cron, the library owns its table's lifecycle end to end.
+        $this->mailbox?->purgeExpired();
+
         // Idempotent: keep an existing poste so its already-captured mail stays readable; the
         // tester's browser owns one stable identity for the whole session.
         $existing = $request->cookies->get(PosteToken::COOKIE);

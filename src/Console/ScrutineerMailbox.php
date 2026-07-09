@@ -18,7 +18,17 @@ final class ScrutineerMailbox
 {
     public function __construct(
         private readonly MailStore $mails,
+        private readonly int $retentionDays = 7,
     ) {}
+
+    /**
+     * Opportunistic GC: drop mails past the retention window. Called by the mint route, so the
+     * inbox self-cleans every time a tester (re)opens the console — no host cron needed.
+     */
+    public function purgeExpired(): void
+    {
+        $this->mails->purge(new \DateTimeImmutable(\sprintf('-%d days', $this->retentionDays)));
+    }
 
     /**
      * @return array{mails: list<array<string, mixed>>}

@@ -25,7 +25,8 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$table', '%scrutineer.mail_capture.table%');
     $services->alias(MailStore::class, DoctrineMailStore::class);
 
-    $services->set(ScrutineerMailbox::class);
+    $services->set(ScrutineerMailbox::class)
+        ->arg('$retentionDays', '%scrutineer.mail_capture.retention_days%');
 
     // The chokepoint: strips X-Scrutineer-* from every mail and captures the reserved-domain
     // ones. Tagged as an event subscriber by autoconfigure (implements EventSubscriberInterface).
