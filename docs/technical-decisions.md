@@ -1,6 +1,6 @@
 # Scrutineer — choix techniques actés
 
-- **Date** — 2026-06-30
+- **Date** — 2026-06-30 (§14 — capture des mails de recette — ajoutée le 2026-07-09)
 - **Statut** — Accepted (gel de conception)
 - **Nature** — librairie autonome **bicéphale** (back PHP + front JS vanilla), pilotée par **contrat**.
 - **En lien avec** — le [README](../README.md) (guide d'intégration).
@@ -173,9 +173,34 @@ permission dédiée) :
 - `GET  …/history`  → timeline (filtrable scénario / version / acteur / périmètre) ;
 - `POST …/events`   → ajoute un événement de résultat.
 
-Toutes **gated** : `SCRUTINEER_ENABLED` + `isScrutineerContext()`.
+Toutes **gated** : `SCRUTINEER_ENABLED` + `isScrutineerContext()`. La capture des mails (§14) ajoute
+`POST …/poste` (mint du cookie de poste) et `GET …/mails` (boîte scopée au cookie), gatées par
+`SCRUTINEER_ENABLED` **+ `mail_capture`** (lues avant auth → l'hôte les expose en public).
 
-## 14. Non-buts
+## 14. Capture des mails de recette (optionnel)
+
+**But** : en recette prod-like (pas de serveur mail de dev), les mails aux personas seedés (2FA, invitation, reset)
+n'ont **pas de boîte réelle**. Activée (`mail_capture.enabled`, **off par défaut** — la lib ne touche jamais au
+mailer d'un hôte sans opt-in), la lib les **intercepte** dans une boîte in-console au lieu de les envoyer.
+
+- **Capture par domaine, pas par confiance client** : l'hôte seede ses personas avec un **domaine réservé** (défaut
+  `@scrutineer.invalid`, RFC 2606 non routable). Le **destinataire** est le signal : un subscriber `MessageEvent`
+  (chokepoint unique) capture les mails dont *tous* les destinataires sont sous le domaine et `reject()` l'envoi.
+- **Isolation par « poste »** : `POST …/poste` mint un jeton opaque en cookie **httpOnly** ; chaque mail capturé est
+  tagué `sha256(jeton)` ; `GET …/mails` scope la boîte au cookie → plusieurs recetteurs en // sur la même persona
+  restent cloisonnés. Le jeton **ne touche jamais le JS**.
+- **Strip-100 % → un jeton unique suffit** : le subscriber strippe `X-Scrutineer-*` de *tous* les mails (capturés ou
+  livrés), donc le jeton ne peut jamais sortir sur un mail. Il fait alors *à la fois* capability de lecture et clé de
+  scope, **sans signature**, et le chemin d'écriture n'a pas besoin d'auth.
+- **Un seul contrat hôte** : recopier le jeton de la requête dans le header du mail sortant `X-Scrutineer-Poste`.
+  *Comment* il voyage (sync, file de messages, workers…) est le ressort de l'hôte — la lib ne mentionne aucun
+  framework, elle lit/strippe ce header **au transport**.
+- **Cycle de vie** : 2e (et seul autre) objet de schéma possédé (`scrutineer_captured_mail`, sans FK, PII de test
+  uniquement) ; port **`MailStore`** surchargeable (défaut Doctrine), comme l'historique. **Auto-purge** des mails
+  > `retention_days` (défaut 7) au mint — aucun cron. Dépendance `symfony/mailer` = un `suggest`, chargé **seulement**
+  si la capture est activée.
+
+## 15. Non-buts
 
 - Pas de **chaîne d'intégrité cryptographique** sur l'historique (donnée QA, pas registre légal) — réouvrable si un
   consommateur l'exige.

@@ -6,7 +6,8 @@ description: >-
   <scrutineer-console> web component. Use for any task that touches this library — wiring its six
   ports and Symfony bundle, mounting the console and pointing it at the API (base attribute /
   CORS / CSP), authoring the scenario catalogue, or working with SCRUTINEER_ENABLED, the
-  /availability pre-flight, the /publish ticketing endpoint, or the append-only test ledger.
+  /availability pre-flight, the /publish ticketing endpoint, the append-only test ledger, or the
+  optional mail capture (per-poste captured-mail inbox: /poste, /mails, mail_capture config).
 ---
 
 # Using the Scrutineer package
@@ -29,6 +30,14 @@ implements ports; nothing of the host's domain leaks into the library.
 - **Ledger.** `scrutineer_test_event` — append-only, **FK-free**, **PII-free** (opaque
   `actor_ref`). A scenario's status is a **projection** over events (no stored "current status");
   it survives a decor reset (the schema is dropped, the ledger is not).
+- **Mail capture (optional, off by default).** With `mail_capture` on, mails whose recipients all
+  fall under a reserved domain (`@scrutineer.invalid`) are intercepted into a **per-poste
+  in-console inbox** instead of sent — a tester reads a 2FA code / invitation link the seeded
+  persona could never receive. A `MessageEvent` subscriber strips `X-Scrutineer-*` from **every**
+  mail and captures the reserved-domain ones; `POST /poste` mints an httpOnly poste cookie,
+  `GET /mails` returns the cookie-scoped inbox (auto-purged past `retention_days`). **Sole host
+  duty:** copy the poste token onto the outgoing mail's `X-Scrutineer-Poste` header. Second owned
+  table `scrutineer_captured_mail`; `MailStore` port; needs `symfony/mailer` (a suggest).
 
 ## Integrate it — follow the recipe
 
@@ -59,9 +68,10 @@ Full signatures are the interfaces in `src/Port/*.php` (docblocks included). **3
 `ScenarioSeeder` (seed/purge a scenario's decor; **the host decides the reset scope**),
 `ScrutineerContextProvider` (`actorRef` **OPAQUE, no PII**, plus `role`, `appVersion`,
 `isScrutineerContext`, `scopeKey`), `CatalogProvider` (`scenarios(?string $role): list<Scenario>`).
-**3 optional** — `ActorResolver` (ref → human label, resolved at render), `HistoryStore` (a
+**Optional** — `ActorResolver` (ref → human label, resolved at render), `HistoryStore` (a
 Doctrine default ships; implement only for another back-end), `TicketPublisher` (unbound ⇒
-`POST /publish` answers `{status:"unsupported"}`).
+`POST /publish` answers `{status:"unsupported"}`), and — only with mail capture on — `MailStore`
+(a Doctrine default ships; implement only to keep the captured mail elsewhere).
 
 ## Author scenarios
 
