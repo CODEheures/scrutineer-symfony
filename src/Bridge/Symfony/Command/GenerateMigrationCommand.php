@@ -6,6 +6,7 @@ namespace CODEHeures\Scrutineer\Bridge\Symfony\Command;
 
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\DependencyFactory;
+use CODEHeures\Scrutineer\Bridge\Doctrine\ScrutineerMailSchema;
 use CODEHeures\Scrutineer\Bridge\Doctrine\ScrutineerTestEventSchema;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -38,6 +39,10 @@ final class GenerateMigrationCommand extends Command
     public function __construct(
         private readonly string $table = ScrutineerTestEventSchema::TABLE,
         private readonly ?DependencyFactory $dependencyFactory = null,
+        // When mail capture is on, the same migration also creates the captured-mail table —
+        // the second (and only other) schema object the library owns.
+        private readonly ?string $mailTable = null,
+        private readonly bool $mailCaptureEnabled = false,
     ) {
         parent::__construct();
     }
@@ -70,6 +75,13 @@ final class GenerateMigrationCommand extends Command
         $schema = new Schema();
         ScrutineerTestEventSchema::define($schema, $this->table);
 
+        // Owned tables to drop on `down`, in creation order (the ledger, then the inbox).
+        $ownedTables = [$this->table];
+        if ($this->mailCaptureEnabled && null !== $this->mailTable) {
+            ScrutineerMailSchema::define($schema, $this->mailTable);
+            $ownedTables[] = $this->mailTable;
+        }
+
         // The library owns exactly the ledger TABLE. When the table is schema-qualified,
         // DBAL also wants to CREATE SCHEMA — but schema lifecycle is the host's concern (its
         // schema usually pre-exists), so drop those statements and just flag the assumption.
@@ -84,7 +96,10 @@ final class GenerateMigrationCommand extends Command
         }
 
         $up = $this->render($tableStatements);
-        $down = $this->render([$platform->getDropTableSQL($this->table)]);
+        $down = $this->render(array_map(
+            static fn(string $table): string => $platform->getDropTableSQL($table),
+            array_reverse($ownedTables),
+        ));
 
         // Pick the target namespace from the host's own migrations configuration.
         $namespace = $this->strOpt($input, 'namespace');

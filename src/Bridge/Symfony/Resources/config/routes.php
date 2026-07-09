@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use CODEHeures\Scrutineer\Bridge\Symfony\Controller\MailboxController;
 use CODEHeures\Scrutineer\Bridge\Symfony\Controller\ScrutineerController;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 
@@ -37,6 +38,17 @@ return static function (RoutingConfigurator $routes): void {
     $routes->add('scrutineer_events', '/events')
         ->controller([ScrutineerController::class, 'events'])
         ->methods(['POST']);
+
+    // Captured-mail inbox (mail capture feature). Both are additionally gated on
+    // mail_capture being enabled — a disabled host answers 403, so holding a poste cookie
+    // always implies capture is on. /poste mints the httpOnly `scrutineer_poste` cookie.
+    $routes->add('scrutineer_poste', '/poste')
+        ->controller([MailboxController::class, 'mint'])
+        ->methods(['POST']);
+
+    $routes->add('scrutineer_mails', '/mails')
+        ->controller([MailboxController::class, 'mails'])
+        ->methods(['GET']);
 
     $routes->add('scrutineer_asset', '/console.js')
         ->controller([ScrutineerController::class, 'asset'])

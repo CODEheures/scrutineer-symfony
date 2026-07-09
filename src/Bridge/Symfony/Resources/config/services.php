@@ -5,9 +5,11 @@ declare(strict_types=1);
 use CODEHeures\Scrutineer\Bridge\Doctrine\DoctrineHistoryStore;
 use CODEHeures\Scrutineer\Bridge\Symfony\Command\ExportHistoryCommand;
 use CODEHeures\Scrutineer\Bridge\Symfony\Command\GenerateMigrationCommand;
+use CODEHeures\Scrutineer\Bridge\Symfony\Controller\MailboxController;
 use CODEHeures\Scrutineer\Bridge\Symfony\Controller\ScrutineerController;
 use CODEHeures\Scrutineer\Console\ScrutineerConsole;
 use CODEHeures\Scrutineer\Console\ScrutineerGuard;
+use CODEHeures\Scrutineer\Console\ScrutineerMailbox;
 use CODEHeures\Scrutineer\Port\ActorResolver;
 use CODEHeures\Scrutineer\Port\HistoryStore;
 use CODEHeures\Scrutineer\Port\TicketPublisher;
@@ -41,6 +43,13 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$assetPath', '%scrutineer.asset_path%')
         ->tag('controller.service_arguments');
 
+    // Captured-mail inbox transport. Always registered so its routes answer 403 when capture
+    // is off; the mailbox reader is bound only if mail capture wired one (else null → 403).
+    $services->set(MailboxController::class)
+        ->arg('$mailCaptureEnabled', '%scrutineer.mail_capture.enabled%')
+        ->arg('$mailbox', service(ScrutineerMailbox::class)->ignoreOnInvalid())
+        ->tag('controller.service_arguments');
+
     // CSV export of the history (reporting tier ①). Autoconfigured as a console command.
     $services->set(ExportHistoryCommand::class)
         ->arg('$actors', service(ActorResolver::class)->ignoreOnInvalid())
@@ -51,5 +60,7 @@ return static function (ContainerConfigurator $container): void {
     // the command reports the missing dependency instead of failing to wire.
     $services->set(GenerateMigrationCommand::class)
         ->arg('$table', '%scrutineer.table%')
-        ->arg('$dependencyFactory', service('doctrine.migrations.dependency_factory')->ignoreOnInvalid());
+        ->arg('$dependencyFactory', service('doctrine.migrations.dependency_factory')->ignoreOnInvalid())
+        ->arg('$mailTable', '%scrutineer.mail_capture.table%')
+        ->arg('$mailCaptureEnabled', '%scrutineer.mail_capture.enabled%');
 };

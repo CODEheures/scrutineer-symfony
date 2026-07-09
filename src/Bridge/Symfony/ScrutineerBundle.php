@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace CODEHeures\Scrutineer\Bridge\Symfony;
 
 use CODEHeures\Scrutineer\Bridge\Doctrine\DoctrineHistoryStore;
+use CODEHeures\Scrutineer\Bridge\Doctrine\DoctrineMailStore;
+use CODEHeures\Scrutineer\Bridge\Doctrine\ScrutineerMailSchema;
 use CODEHeures\Scrutineer\Bridge\Doctrine\ScrutineerTestEventSchema;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -53,6 +55,21 @@ final class ScrutineerBundle extends AbstractBundle
                 // The DBAL connection hosting the ledger; null = the default connection.
                 // Should match the connection the host runs its migrations against.
                 ->scalarNode('connection')->defaultNull()->end()
+                // Mail capture: intercept mails to the reserved domain into a staging inbox
+                // instead of delivering them (seeded personas have no real mailbox). OFF by
+                // default — the library never touches a host's mailer unless asked. Requires
+                // symfony/mailer on the host.
+                ->arrayNode('mail_capture')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enabled')->defaultFalse()->end()
+                        // Recipients whose address ends with @<domain> are captured. Use a
+                        // guaranteed-unroutable TLD (RFC 2606 `.invalid`) so a missed capture
+                        // still cannot deliver anywhere.
+                        ->scalarNode('domain')->defaultValue('scrutineer.invalid')->end()
+                        ->scalarNode('table')->defaultValue(ScrutineerMailSchema::TABLE)->end()
+                    ->end()
+                ->end()
             ->end();
     }
 
@@ -63,24 +80,40 @@ final class ScrutineerBundle extends AbstractBundle
      *     language: string,
      *     table: string,
      *     connection: string|null,
+     *     mail_capture: array{enabled: bool, domain: string, table: string},
      * } $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
+        $mailCapture = $config['mail_capture'];
+
         $container->parameters()
             ->set('scrutineer.enabled', $config['enabled'])
             ->set('scrutineer.asset_path', $config['asset_path'])
             ->set('scrutineer.language', $config['language'])
-            ->set('scrutineer.table', $config['table']);
+            ->set('scrutineer.table', $config['table'])
+            // Always set (even when off) so services.php / the command can reference them.
+            ->set('scrutineer.mail_capture.enabled', $mailCapture['enabled'])
+            ->set('scrutineer.mail_capture.domain', $mailCapture['domain'])
+            ->set('scrutineer.mail_capture.table', $mailCapture['table']);
 
         $container->import(__DIR__ . '/Resources/config/services.php');
 
-        // Bind the ledger to a named DBAL connection if the host chose one (else the store
-        // autowires the default connection). Done on the builder so it overrides the
-        // autowired `$connection` argument of the already-imported store definition.
+        // The mailer listener + inbox store are wired ONLY when capture is on, so a host that
+        // manages its own mail is never decorated.
+        if ($mailCapture['enabled']) {
+            $container->import(__DIR__ . '/Resources/config/services_mail.php');
+        }
+
+        // Bind the ledger (and the inbox, when wired) to a named DBAL connection if the host
+        // chose one — else they autowire the default. Done on the builder so it overrides the
+        // autowired `$connection` argument of the already-imported store definitions.
         if (null !== $config['connection']) {
-            $builder->getDefinition(DoctrineHistoryStore::class)
-                ->setArgument('$connection', new Reference(\sprintf('doctrine.dbal.%s_connection', $config['connection'])));
+            $connection = new Reference(\sprintf('doctrine.dbal.%s_connection', $config['connection']));
+            $builder->getDefinition(DoctrineHistoryStore::class)->setArgument('$connection', $connection);
+            if ($mailCapture['enabled']) {
+                $builder->getDefinition(DoctrineMailStore::class)->setArgument('$connection', $connection);
+            }
         }
     }
 }

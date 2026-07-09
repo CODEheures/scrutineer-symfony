@@ -15,7 +15,9 @@
         "symfony/uid": "^7.1 || ^8.0"
     },
     "suggest": {
-        "doctrine/doctrine-migrations-bundle": "To generate the ledger migration from config via scrutineer:generate-migration."
+        "doctrine/doctrine-migrations-bundle": "To generate the ledger migration from config via scrutineer:generate-migration.",
+        "symfony/mailer": "To capture staging mails (scrutineer.mail_capture) into an in-app inbox instead of delivering them.",
+        "symfony/mime": "Required alongside symfony/mailer when mail capture is enabled."
     },
     "autoload": {
         "psr-4": {
